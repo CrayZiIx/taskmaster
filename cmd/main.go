@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/CrayZiIx/taskmaster/internal/deamon/config"
+	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
 )
 
 func main() {
