@@ -45,10 +45,11 @@ type OutputType struct {
 	StdErr string `yaml:"stderr"`
 }
 
-func LoadConfig(filePath string) (*ConfigurationFile, error) {
+func LoadConfig() (*ConfigurationFile, error) {
 
-	if filePath == "" {
-		filePath = "internal/deamon/config/default-config.yaml"
+	filePath := "internal/daemon/config/default-config.yaml"
+	if len(os.Args) > 1 && os.Args[1] != "" {
+		filePath = os.Args[1]
 		// we could also define the default path by finding the first .yaml inside the directory where the prog is start
 	}
 	// get config file as prog args
