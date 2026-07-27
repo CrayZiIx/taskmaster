@@ -45,7 +45,7 @@ type OutputType struct {
 	StdErr string `yaml:"stderr"`
 }
 
-func LoadConfig() (*ConfigurationFile, error) {
+func LoadConfigFile() (*ConfigurationFile, error) {
 
 	filePath := "internal/daemon/config/default-config.yaml"
 	if len(os.Args) > 1 && os.Args[1] != "" {

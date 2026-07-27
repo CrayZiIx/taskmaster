@@ -1,0 +1,2 @@
+ - [ ] thinks about struct embedding, how to load configuration files and monitor process 
+ - [ ] be able to run process and reload their config without shutting them down

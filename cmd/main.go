@@ -2,26 +2,38 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
+	"github.com/CrayZiIx/taskmaster/internal/daemon/monitoring"
 )
 
 func main() {
-	cfg, err := config.LoadConfig()
+
+	cfg, err := config.LoadConfigFile()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
+	var processes []monitoring.Process
+
 	for name, program := range cfg.Programs {
-		tmpCmd := exec.Command(program.Command[0], program.Command[1:]...)
-		tmpOut, err := tmpCmd.Output()
-		if err != nil {
-			fmt.Printf("exec: %s, error = %s\n", program.Command, err)
-			return
+		fmt.Printf("loading config for process : %v\n", name)
+		p, err := monitoring.NewProcess(name)
+		p.Config = program
+		p.LoadConfig()
+		p.LoadEnv()
+		// to do: looks how to define those
+		// tmpCmd.Stdout = program.Output.StdOut
+		// tmpCmd.stderr = progam.Output.StdErr
+		if program.Journey.AutoStart {
+			err = p.ExecCommand()
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("prog exited success: %v & exit code %d\n", p.Command.ProcessState.Success(), p.GetExitCode())
 		}
-		fmt.Println(">", name)
-		fmt.Println(string(tmpOut))
+		fmt.Printf("config loaded : %v\n", p)
+		processes = append(processes, *p)
 	}
 }

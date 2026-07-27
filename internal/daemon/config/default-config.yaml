@@ -1,6 +1,6 @@
 taskmaster:
     ls:
-        workdir: "/var/lib/temp" 
+        workdir: "" 
         umask: "022"
 
         cmd: # allow the user to add args has much as he want 
@@ -8,7 +8,7 @@ taskmaster:
             - "-l"
         
         journey:
-            autostart: true #boolean
+            autostart: false #boolean
             health-time: 1000 # in ms
         
             restart-policy:
@@ -29,3 +29,59 @@ taskmaster:
             APP_ENV: "prod"
             LOG_LEVEL: "info"
 
+    echo_test:
+        workdir: "/usr/" 
+        umask: "022"
+
+        cmd: # allow the user to add args has much as he want 
+            - "/bin/echo"
+            - "test"
+        
+        journey:
+            autostart: false #boolean
+            health-time: 1000 # in ms
+        
+            restart-policy:
+                restart-case: "unexpected" # always, never, unexpected
+                restart-nb: 3 # amount of restart before aborting the process
+
+            exit: 
+                code: [0] # list of exit code 
+                signal: ["SIGTERM"] #list of signals that exit the process
+                timeout-ms: 5000 # in ms 
+
+        process-nb: 1 # the number of process we want to run
+
+        output:
+            stdout: "/dev/null"
+            stderr: "/dev/null"
+        env:
+            APP_ENV: "prod"
+            LOG_LEVEL: "info"
+
+    cat:
+        workdir: "" 
+        umask: "022"
+
+        cmd: # allow the user to add args has much as he want 
+            - "/bin/cat"
+        
+        journey:
+            autostart: true #boolean
+            health-time: 1000 # in ms
+        
+            restart-policy:
+                restart-case: "unexpected" # always, never, unexpected
+                restart-nb: 3 # amount of restart before aborting the process
+
+            exit: 
+                code: [0] # list of exit code 
+                signal: ["SIGTERM"] #list of signals that exit the process
+                timeout-ms: 5000 # in ms 
+
+        process-nb: 1 # the number of process we want to run
+
+        output:
+            stdout: "/dev/null"
+            stderr: "/dev/null"
+        env:
