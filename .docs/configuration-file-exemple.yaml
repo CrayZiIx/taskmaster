@@ -1,6 +1,6 @@
 taskmaster:
     my-program:
-        workkdir: "/var/lib/temp" 
+        workdir: "/var/lib/temp" 
         umask: "022"
 
         cmd: # allow the user to add args has much as he want 
@@ -20,7 +20,7 @@ taskmaster:
                 signal: ["SIGTERM"] #list of signals that exit the process
                 timeout-ms: 5000 # in ms 
 
-        proccess-nb: 1 # the number of proccess we want to run
+        process-nb: 1 # the number of process we want to run
 
         output:
             stdout: "/dev/null"
