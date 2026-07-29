@@ -13,7 +13,7 @@ type State string
 const (
 	NOT_STARTED   State = "not_started"
 	RUNNING       State = "running"
-	EXITED        State = "exited"
+	EXITED        State = "exited_without_error"
 	EXITED_WERROR State = "exited_with_error"
 )
 
@@ -81,5 +81,5 @@ func (p *Process) Kill() error {
 }
 
 func (p *Process) Status() State {
-
+	return p.State
 }
