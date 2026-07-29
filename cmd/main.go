@@ -18,5 +18,5 @@ func main() {
 	p := process.New("ls", cfg.Programs["ls"])
 	p.Start()
 	p.Wait()
-	fmt.Println(p.ExitCode)
+	fmt.Printf("%#v\n", p)
 }
