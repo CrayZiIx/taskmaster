@@ -63,8 +63,8 @@ taskmaster:
 				},
 			},
 			Output: OutputType{
-				StdOut: "/dev/null",
-				StdErr: "/dev/null",
+				Stdout: "/dev/null",
+				Stderr: "/dev/null",
 			},
 			Environment: map[string]string{
 				"APP_ENV":   "prod",

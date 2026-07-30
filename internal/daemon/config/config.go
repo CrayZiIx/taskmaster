@@ -41,8 +41,8 @@ type ExitType struct {
 }
 
 type OutputType struct {
-	StdOut string `yaml:"stdout"`
-	StdErr string `yaml:"stderr"`
+	Stdout string `yaml:"stdout"`
+	Stderr string `yaml:"stderr"`
 }
 
 func LoadConfigFile() (*ConfigurationFile, error) {

@@ -59,12 +59,13 @@ taskmaster:
             APP_ENV: "prod"
             LOG_LEVEL: "info"
 
-    cat:
+    sleep:
         workdir: "" 
         umask: "022"
 
         cmd: # allow the user to add args has much as he want 
-            - "/bin/cat"
+            - "/bin/sleep"
+            - "10"
         
         journey:
             autostart: true #boolean
