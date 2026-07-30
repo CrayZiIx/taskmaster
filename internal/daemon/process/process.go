@@ -82,6 +82,7 @@ func New(name string, conf config.ConfigurationProgram) (*Process, error) {
 			if stderrFile != nil {
 				stderrFile.Close()
 			}
+			stdoutFile.Close()
 			return nil, fmt.Errorf("start: %w", err)
 		}
 		cmd.Stderr = stderrFile
