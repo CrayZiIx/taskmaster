@@ -77,7 +77,7 @@ func New(name string, conf config.ConfigurationProgram) (*Process, error) {
 	if conf.Output.Stderr == "" {
 		cmd.Stderr = os.Stderr
 	} else {
-		stderrFile, err = os.Open(conf.Output.Stderr)
+		stderrFile, err = os.OpenFile(conf.Output.Stderr, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
 			if stderrFile != nil {
 				stderrFile.Close()
