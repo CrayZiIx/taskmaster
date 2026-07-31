@@ -72,9 +72,6 @@ func New(name string, conf config.ConfigurationProgram) (*Process, error) {
 	} else {
 		stdoutFile, err = os.OpenFile(conf.Output.Stdout, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
-			if stdoutFile != nil {
-				stdoutFile.Close()
-			}
 			return nil, fmt.Errorf("start: %w", err)
 		}
 		cmd.Stdout = stdoutFile
@@ -84,10 +81,9 @@ func New(name string, conf config.ConfigurationProgram) (*Process, error) {
 	} else {
 		stderrFile, err = os.OpenFile(conf.Output.Stderr, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
-			if stderrFile != nil {
-				stderrFile.Close()
+			if stdoutFile != nil {
+				stdoutFile.Close()
 			}
-			stdoutFile.Close()
 			return nil, fmt.Errorf("start: %w", err)
 		}
 		cmd.Stderr = stderrFile
