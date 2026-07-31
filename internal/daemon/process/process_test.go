@@ -114,7 +114,7 @@ func TestProcessWaitFailure(t *testing.T) {
 	if p.Status() != EXITED_WERROR {
 		t.Fatalf("Status() = %q, want %q", p.Status(), EXITED_WERROR)
 	}
-	if p.ExitCode != 7 {
+	if p.GetExitCode() != 7 {
 		t.Fatalf("ExitCode = %d, want 7", p.ExitCode)
 	}
 }

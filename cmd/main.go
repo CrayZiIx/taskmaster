@@ -23,7 +23,10 @@ func main() {
 	if err != nil {
 		fmt.Println("process start:", err)
 	}
-	if err = p.Stop(); err != nil {
+	// if err = p.Stop(); err != nil {
+	// 	fmt.Printf("process %v: %v\n", p.Name, err)
+	// }
+	if err = p.Wait(); err != nil {
 		fmt.Printf("process %v: %v\n", p.Name, err)
 	}
 	fmt.Printf("%v\n", p)

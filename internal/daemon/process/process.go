@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
 )
@@ -28,6 +29,10 @@ type Process struct {
 
 	stdoutFile *os.File
 	stderrFile *os.File
+
+	done    chan struct{}
+	waitErr error
+	mu      sync.RWMutex
 }
 
 func (p *Process) closeOutputFiles() error {
@@ -95,6 +100,7 @@ func New(name string, conf config.ConfigurationProgram) (*Process, error) {
 		State:      NOT_STARTED,
 		stdoutFile: stdoutFile,
 		stderrFile: stderrFile,
+		done:       make(chan struct{}),
 	}, nil
 }
 
@@ -103,26 +109,45 @@ func (p *Process) Start() error {
 		p.closeOutputFiles()
 		return fmt.Errorf("start: %w", err)
 	}
+	p.mu.Lock()
 	p.State = RUNNING
+	p.mu.Unlock()
+
+	go p.waitForExit()
+
 	return nil
 }
 
 func (p *Process) Wait() error {
+	<-p.done
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.waitErr
+}
+
+func (p *Process) waitForExit() {
 	err := p.Cmd.Wait()
-	p.ExitCode = p.Cmd.ProcessState.ExitCode()
-	switch {
-	case p.ExitCode != 0:
+
+	closeErr := p.closeOutputFiles()
+	err = errors.Join(err, closeErr)
+
+	p.mu.Lock()
+	p.waitErr = err
+	if p.Cmd.ProcessState != nil {
+		p.ExitCode = p.Cmd.ProcessState.ExitCode()
+	}
+
+	if err != nil {
 		p.State = EXITED_WERROR
-	default:
+	} else {
 		p.State = EXITED
 	}
-	if err != nil {
-		return fmt.Errorf("wait: %w", err)
-	}
-	if err = p.closeOutputFiles(); err != nil {
-		return fmt.Errorf("wait: %w", err)
-	}
-	return nil
+
+	p.mu.Unlock()
+
+	close(p.done)
 }
 
 func (p *Process) Kill() error {
@@ -144,5 +169,15 @@ func (p *Process) Stop() error {
 }
 
 func (p *Process) Status() State {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	return p.State
+}
+
+func (p *Process) GetExitCode() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.ExitCode
 }
