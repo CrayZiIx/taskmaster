@@ -49,22 +49,22 @@ implemented by my teammate and is therefore kept as an integration task here.
 
 ## 3. Supervisor and monitoring
 
-- [ ] Implement the supervisor that owns all configured programs.
-- [ ] Start programs marked with `autostart: true`.
-- [ ] Monitor every running process in its own goroutine.
-- [ ] Detect normal exits, unexpected exits, signal exits, and start errors.
-- [ ] Apply the restart policy:
-  - [ ] `never`: do not restart.
-  - [ ] `always`: restart after every exit when allowed.
-  - [ ] `unexpected`: restart only after an unexpected exit.
-- [ ] Enforce the maximum number of restarts.
-- [ ] Wait for `health-time` before considering a process healthy.
-- [ ] Reset or retain restart counters according to the chosen policy.
-- [ ] Avoid restart loops and add a small backoff where necessary.
-- [ ] Expose a safe snapshot of program and process statuses to the UI/client.
-- [ ] Handle supervisor shutdown and stop all children cleanly.
-- [ ] Handle `SIGTERM`, `SIGINT`, and relevant child-process signals.
-- [ ] Add supervisor tests for autostart, crashes, restart policies, limits,
+- [x] Implement the supervisor that owns all configured programs.
+- [x] Start programs marked with `autostart: true`.
+- [x] Monitor every running process in its own goroutine.
+- [x] Detect normal exits, unexpected exits, signal exits, and start errors.
+- [x] Apply the restart policy:
+  - [x] `never`: do not restart.
+  - [x] `always`: restart after every exit when allowed.
+  - [x] `unexpected`: restart only after an unexpected exit.
+- [x] Enforce the maximum number of restarts.
+- [x] Wait for `health-time` before considering a process healthy.
+- [x] Reset or retain restart counters according to the chosen policy.
+- [x] Avoid restart loops and add a small backoff where necessary.
+- [x] Expose a safe snapshot of program and process statuses to the UI/client.
+- [x] Handle supervisor shutdown and stop all children cleanly.
+- [x] Handle `SIGTERM`, `SIGINT`, and relevant child-process signals.
+- [x] Add supervisor tests for autostart, crashes, restart policies, limits,
   timeouts, and shutdown.
 
 ## 4. Backend interface for the TUI

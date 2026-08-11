@@ -407,6 +407,19 @@ func (p *Process) Result() ExitInfo {
 	return p.exitInfo
 }
 
+func (p *Process) Done() <-chan struct{} {
+	return p.done
+}
+
+func (p *Process) PID() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.State == NOT_STARTED || p.State == STARTING || p.State == START_FAILED || p.Cmd.Process == nil {
+		return 0
+	}
+	return p.Cmd.Process.Pid
+}
+
 func (p *Process) Status() State {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"sort"
+	"os/signal"
+	"syscall"
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
-	"github.com/CrayZiIx/taskmaster/internal/daemon/process"
+	"github.com/CrayZiIx/taskmaster/internal/daemon/supervisor"
 )
 
 func main() {
@@ -22,27 +24,15 @@ func main() {
 		return
 	}
 
-	programNames := make([]string, 0, len(cfg.Programs))
-	for name := range cfg.Programs {
-		programNames = append(programNames, name)
-	}
-	sort.Strings(programNames)
-	programName := programNames[0]
-
-	p, err := process.New(programName, cfg.Programs[programName])
+	s, err := supervisor.New(cfg)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	err = p.Start()
-	if err != nil {
-		fmt.Println("process start:", err)
+
+	ctx, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stopSignals()
+	if err := s.Run(ctx); err != nil {
+		fmt.Println("supervisor:", err)
 	}
-	// if err = p.Stop(); err != nil {
-	// 	fmt.Printf("process %v: %v\n", p.Name, err)
-	// }
-	if err = p.Wait(); err != nil {
-		fmt.Printf("process %v: %v\n", p.Name, err)
-	}
-	// fmt.Printf("%v\n", p)
 }
