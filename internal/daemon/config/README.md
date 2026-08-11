@@ -24,6 +24,8 @@ taskmaster:
         code: [0]
         signal: ["SIGTERM"]
         timeout-ms: 5000
+      stop:
+        signal: SIGTERM
 ```
 
 `cmd` is required and its first value must resolve to an executable. Arguments
@@ -45,6 +47,7 @@ The defaults are:
 | `exit.code` | `[0]` |
 | `exit.signal` | empty |
 | `exit.timeout-ms` | `5000` milliseconds |
+| `stop.signal` | `SIGTERM` |
 | `output.stdout`, `output.stderr` | inherit the daemon streams |
 | `env` | inherit the daemon environment |
 

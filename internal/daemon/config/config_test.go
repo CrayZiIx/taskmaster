@@ -131,6 +131,9 @@ taskmaster:
 	if program.Journey.Exit.Timeout != 5000 {
 		t.Fatalf("Timeout = %d, want 5000", program.Journey.Exit.Timeout)
 	}
+	if program.Journey.Stop.Signal != "SIGTERM" {
+		t.Fatalf("Stop.Signal = %q, want SIGTERM", program.Journey.Stop.Signal)
+	}
 }
 
 func TestParseConfigRejectsInvalidValues(t *testing.T) {
@@ -178,6 +181,11 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 			name:  "invalid signal",
 			input: "taskmaster:\n  worker:\n    cmd: [echo]\n    journey:\n      exit:\n        signal: [TERM]",
 			want:  "exit.signal",
+		},
+		{
+			name:  "invalid stop signal",
+			input: "taskmaster:\n  worker:\n    cmd: [echo]\n    journey:\n      stop:\n        signal: UNKNOWN",
+			want:  "journey.stop.signal",
 		},
 		{
 			name:  "invalid environment name",

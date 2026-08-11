@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,6 +34,7 @@ type JourneyType struct {
 	HealthTime    uint              `yaml:"health-time"`
 	RestartPolicy RestartPolicyType `yaml:"restart-policy"`
 	Exit          ExitType          `yaml:"exit"`
+	Stop          StopType          `yaml:"stop"`
 }
 
 type RestartCase string
@@ -52,6 +54,10 @@ type ExitType struct {
 	ExitCodes   []int    `yaml:"code"`
 	ExitSignals []string `yaml:"signal"`
 	Timeout     uint     `yaml:"timeout-ms"`
+}
+
+type StopType struct {
+	Signal string `yaml:"signal"`
 }
 
 type OutputType struct {
@@ -171,6 +177,9 @@ func (p *ConfigurationProgram) applyDefaults() {
 	if p.Journey.Exit.Timeout == 0 {
 		p.Journey.Exit.Timeout = 5000
 	}
+	if p.Journey.Stop.Signal == "" {
+		p.Journey.Stop.Signal = "SIGTERM"
+	}
 }
 
 // Normalize applies defaults and validates a program assembled by Go code.
@@ -203,6 +212,9 @@ func (p ConfigurationProgram) validate(path string) error {
 	}
 	if _, err := ParseUmask(p.Umask); err != nil {
 		return fmt.Errorf("%s.umask: %w", path, err)
+	}
+	if _, err := SignalNumber(p.Journey.Stop.Signal); err != nil {
+		return fmt.Errorf("%s.journey.stop.signal: %w", path, err)
 	}
 
 	if p.Workdir != "" && strings.IndexByte(p.Workdir, 0) >= 0 {
@@ -302,6 +314,31 @@ func ValidateSignal(value string) error {
 	return nil
 }
 
+// SignalNumber converts a supported graceful-stop signal name to its Unix
+// signal number.
+func SignalNumber(value string) (syscall.Signal, error) {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "SIGHUP":
+		return syscall.SIGHUP, nil
+	case "SIGINT":
+		return syscall.SIGINT, nil
+	case "SIGQUIT":
+		return syscall.SIGQUIT, nil
+	case "SIGTERM":
+		return syscall.SIGTERM, nil
+	case "SIGUSR1":
+		return syscall.SIGUSR1, nil
+	case "SIGUSR2":
+		return syscall.SIGUSR2, nil
+	case "SIGCONT":
+		return syscall.SIGCONT, nil
+	case "SIGTSTP":
+		return syscall.SIGTSTP, nil
+	default:
+		return 0, fmt.Errorf("must be a supported stop signal such as SIGTERM")
+	}
+}
+
 // Manager provides an atomic configuration snapshot. Reload parses and
 // validates the candidate before replacing the active snapshot, so a bad
 // reload cannot disrupt the currently running supervisor configuration.
@@ -378,6 +415,7 @@ type rawJourney struct {
 	HealthTime    *uint             `yaml:"health-time"`
 	RestartPolicy *rawRestartPolicy `yaml:"restart-policy"`
 	Exit          *rawExit          `yaml:"exit"`
+	Stop          *rawStop          `yaml:"stop"`
 }
 
 type rawRestartPolicy struct {
@@ -389,6 +427,10 @@ type rawExit struct {
 	ExitCodes   []int    `yaml:"code"`
 	ExitSignals []string `yaml:"signal"`
 	Timeout     *uint    `yaml:"timeout-ms"`
+}
+
+type rawStop struct {
+	Signal *string `yaml:"signal"`
 }
 
 type rawOutput struct {
@@ -459,6 +501,9 @@ func (r rawConfigurationProgram) program(path string) (ConfigurationProgram, err
 			if r.Journey.Exit.Timeout != nil {
 				program.Journey.Exit.Timeout = *r.Journey.Exit.Timeout
 			}
+		}
+		if r.Journey.Stop != nil && r.Journey.Stop.Signal != nil {
+			program.Journey.Stop.Signal = *r.Journey.Stop.Signal
 		}
 	}
 	if err := program.validate(path); err != nil {

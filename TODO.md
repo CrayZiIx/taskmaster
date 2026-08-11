@@ -23,6 +23,7 @@ implemented by my teammate and is therefore kept as an integration task here.
   - [x] accepted exit codes (`exit.code`)
   - [x] accepted exit signals (`exit.signal`)
   - [x] exit timeout (`exit.timeout-ms`)
+  - [x] graceful stop signal (`stop.signal`)
 - [x] Define and document defaults for optional configuration values.
 - [ ] Reload the configuration safely without unnecessarily stopping running
   processes.
@@ -35,16 +36,16 @@ implemented by my teammate and is therefore kept as an integration task here.
 - [x] Start a process and wait for its exit.
 - [x] Track the process state and exit code.
 - [x] Capture or redirect stdout and stderr.
-- [ ] Run every configured process instance independently.
-- [ ] Support `process-nb > 1` with distinct process instances.
-- [ ] Prevent invalid lifecycle operations, such as starting an already
+- [x] Run every configured process instance independently.
+- [x] Support `process-nb > 1` with distinct process instances.
+- [x] Prevent invalid lifecycle operations, such as starting an already
   running process or stopping a process that never started.
-- [ ] Stop processes gracefully using the configured signal.
-- [ ] Escalate after the configured timeout when a process does not exit.
-- [ ] Correctly handle exit codes, signals, failed starts, and crashes.
-- [ ] Ensure child processes are reaped and no zombies are left behind.
-- [ ] Ensure output files and other resources are always closed.
-- [ ] Add process lifecycle and concurrency tests.
+- [x] Stop processes gracefully using the configured signal.
+- [x] Escalate after the configured timeout when a process does not exit.
+- [x] Correctly handle exit codes, signals, failed starts, and crashes.
+- [x] Ensure child processes are reaped and no zombies are left behind.
+- [x] Ensure output files and other resources are always closed.
+- [x] Add process lifecycle and concurrency tests.
 
 ## 3. Supervisor and monitoring
 

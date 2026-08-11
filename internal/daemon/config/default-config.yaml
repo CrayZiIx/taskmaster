@@ -21,6 +21,8 @@ taskmaster:
         code: [0]
         signal: ["SIGTERM"]
         timeout-ms: 5000
+      stop:
+        signal: "SIGTERM"
 
   sleep:
     cmd: ["/bin/sleep", "10"]
@@ -40,3 +42,5 @@ taskmaster:
         code: [0]
         signal: ["SIGTERM"]
         timeout-ms: 5000
+      stop:
+        signal: "SIGTERM"
