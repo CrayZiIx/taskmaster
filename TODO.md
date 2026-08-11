@@ -25,7 +25,7 @@ implemented by my teammate and is therefore kept as an integration task here.
   - [x] exit timeout (`exit.timeout-ms`)
   - [x] graceful stop signal (`stop.signal`)
 - [x] Define and document defaults for optional configuration values.
-- [ ] Reload the configuration safely without unnecessarily stopping running
+- [x] Reload the configuration safely without unnecessarily stopping running
   processes.
 - [x] Add configuration tests for valid files, invalid YAML, unknown fields,
   missing fields, invalid values, and reloads.
@@ -69,18 +69,18 @@ implemented by my teammate and is therefore kept as an integration task here.
 
 ## 4. Backend interface for the TUI
 
-- [ ] Define the commands/actions the TUI needs:
-  - [ ] list programs and instances
-  - [ ] show status and exit information
-  - [ ] start a program
-  - [ ] stop a program
-  - [ ] restart a program
-  - [ ] reload configuration
-  - [ ] shut down the supervisor
-- [ ] Define stable request/response and error types.
+- [x] Define the commands/actions the TUI needs:
+  - [x] list programs and instances
+  - [x] show status and exit information
+  - [x] start a program
+  - [x] stop a program
+  - [x] restart a program
+  - [x] reload configuration
+  - [x] shut down the supervisor
+- [x] Define stable request/response and error types.
 - [ ] Agree on this interface with my teammate before the TUI is implemented.
 - [ ] Integrate the TUI with the supervisor without duplicating process logic.
-- [ ] Test the backend independently from the TUI.
+- [x] Test the backend independently from the TUI.
 
 ## 5. Reliability and delivery
 

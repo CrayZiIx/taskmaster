@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ var (
 
 type Supervisor struct {
 	mu           sync.RWMutex
+	controlMu    sync.Mutex
 	programs     map[string]*programRuntime
 	stopCh       chan struct{}
 	shutdownDone chan struct{}
@@ -141,18 +143,7 @@ func New(cfg *config.ConfigurationFile) (*Supervisor, error) {
 		shutdownDone: make(chan struct{}),
 	}
 	for name, programConfig := range copy.Programs {
-		runtime := &programRuntime{name: name, config: programConfig}
-		runtime.instances = make([]*instanceRuntime, programConfig.ProcessNb)
-		for index := range runtime.instances {
-			runtime.instances[index] = &instanceRuntime{
-				number:      uint(index + 1),
-				programName: name,
-				config:      programConfig,
-				state:       process.NOT_STARTED,
-				lastExit:    process.ExitInfo{ExitCode: -1},
-			}
-		}
-		s.programs[name] = runtime
+		s.programs[name] = newProgramRuntime(name, programConfig)
 	}
 	return s, nil
 }
@@ -179,11 +170,13 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	s.mu.Unlock()
 
 	sort.Slice(programs, func(i, j int) bool { return programs[i].name < programs[j].name })
+	s.controlMu.Lock()
 	for _, runtime := range programs {
 		if runtime.config.Journey.AutoStart {
 			_ = s.startProgram(runtime, false)
 		}
 	}
+	s.controlMu.Unlock()
 
 	select {
 	case <-ctx.Done():
@@ -195,6 +188,9 @@ func (s *Supervisor) Run(ctx context.Context) error {
 
 func (s *Supervisor) Shutdown() error {
 	s.shutdownOnce.Do(func() {
+		s.controlMu.Lock()
+		defer s.controlMu.Unlock()
+
 		s.mu.Lock()
 		s.shuttingDown = true
 		close(s.stopCh)
@@ -232,6 +228,9 @@ func (s *Supervisor) Shutdown() error {
 }
 
 func (s *Supervisor) StartProgram(name string) error {
+	s.controlMu.Lock()
+	defer s.controlMu.Unlock()
+
 	runtime, err := s.program(name)
 	if err != nil {
 		return err
@@ -242,6 +241,9 @@ func (s *Supervisor) StartProgram(name string) error {
 }
 
 func (s *Supervisor) StopProgram(name string) error {
+	s.controlMu.Lock()
+	defer s.controlMu.Unlock()
+
 	runtime, err := s.program(name)
 	if err != nil {
 		return err
@@ -259,6 +261,9 @@ func (s *Supervisor) StopProgram(name string) error {
 }
 
 func (s *Supervisor) RestartProgram(name string) error {
+	s.controlMu.Lock()
+	defer s.controlMu.Unlock()
+
 	runtime, err := s.program(name)
 	if err != nil {
 		return err
@@ -278,7 +283,88 @@ func (s *Supervisor) RestartProgram(name string) error {
 	return s.startProgram(runtime, true)
 }
 
+// Reload atomically reconciles the supervisor with a validated configuration.
+// Running processes are preserved when their process-launch configuration is
+// compatible. Changed launch settings restart active instances, removed
+// programs are stopped, and new instances are created for additions.
+func (s *Supervisor) Reload(cfg *config.ConfigurationFile) error {
+	copy, err := cloneConfiguration(cfg)
+	if err != nil {
+		return err
+	}
+
+	s.controlMu.Lock()
+	defer s.controlMu.Unlock()
+	if s.isShuttingDown() {
+		return ErrSupervisorShuttingDown
+	}
+
+	s.mu.RLock()
+	existing := make(map[string]*programRuntime, len(s.programs))
+	for name, runtime := range s.programs {
+		existing[name] = runtime
+	}
+	s.mu.RUnlock()
+
+	names := make([]string, 0, len(existing))
+	for name := range existing {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		existing[name].opMu.Lock()
+	}
+	defer func() {
+		for index := len(names) - 1; index >= 0; index-- {
+			existing[names[index]].opMu.Unlock()
+		}
+	}()
+
+	var reconcileErr error
+	for _, name := range names {
+		runtime := existing[name]
+		next, stillConfigured := copy.Programs[name]
+		if !stillConfigured {
+			reconcileErr = errors.Join(reconcileErr, s.stopProgramRuntime(runtime))
+			continue
+		}
+		reconcileErr = errors.Join(reconcileErr, s.reconcileProgram(runtime, next))
+	}
+
+	added := make([]*programRuntime, 0)
+	s.mu.Lock()
+	if s.shuttingDown {
+		s.mu.Unlock()
+		return errors.Join(reconcileErr, ErrSupervisorShuttingDown)
+	}
+	for name := range existing {
+		if _, ok := copy.Programs[name]; !ok {
+			delete(s.programs, name)
+		}
+	}
+	for name, programConfig := range copy.Programs {
+		if _, ok := existing[name]; ok {
+			continue
+		}
+		runtime := newProgramRuntime(name, programConfig)
+		s.programs[name] = runtime
+		added = append(added, runtime)
+	}
+	s.mu.Unlock()
+
+	sort.Slice(added, func(i, j int) bool { return added[i].name < added[j].name })
+	for _, runtime := range added {
+		if runtime.config.Journey.AutoStart {
+			reconcileErr = errors.Join(reconcileErr, s.startProgram(runtime, false))
+		}
+	}
+	return reconcileErr
+}
+
 func (s *Supervisor) Snapshot() Snapshot {
+	s.controlMu.Lock()
+	defer s.controlMu.Unlock()
+
 	s.mu.RLock()
 	shuttingDown := s.shuttingDown
 	programs := make([]*programRuntime, 0, len(s.programs))
@@ -323,12 +409,35 @@ func (s *Supervisor) Snapshot() Snapshot {
 	return snapshot
 }
 
+func newProgramRuntime(name string, programConfig config.ConfigurationProgram) *programRuntime {
+	runtime := &programRuntime{name: name, config: programConfig}
+	runtime.instances = make([]*instanceRuntime, programConfig.ProcessNb)
+	for index := range runtime.instances {
+		runtime.instances[index] = newInstanceRuntime(name, uint(index+1), programConfig)
+	}
+	return runtime
+}
+
+func newInstanceRuntime(programName string, number uint, programConfig config.ConfigurationProgram) *instanceRuntime {
+	return &instanceRuntime{
+		number:      number,
+		programName: programName,
+		config:      programConfig,
+		state:       process.NOT_STARTED,
+		lastExit:    process.ExitInfo{ExitCode: -1},
+	}
+}
+
 func (s *Supervisor) startProgram(runtime *programRuntime, manual bool) error {
 	if s.isShuttingDown() {
 		return ErrSupervisorShuttingDown
 	}
+	return s.startInstances(runtime, runtime.instances, manual)
+}
+
+func (s *Supervisor) startInstances(runtime *programRuntime, instances []*instanceRuntime, manual bool) error {
 	var startErr error
-	for _, instance := range runtime.instances {
+	for _, instance := range instances {
 		if err := s.startInstance(instance, manual); err != nil {
 			startErr = errors.Join(startErr, err)
 			if !errors.Is(err, ErrInstanceStarting) {
@@ -337,6 +446,93 @@ func (s *Supervisor) startProgram(runtime *programRuntime, manual bool) error {
 		}
 	}
 	return startErr
+}
+
+func (s *Supervisor) stopProgramRuntime(runtime *programRuntime) error {
+	var stopErr error
+	for _, instance := range runtime.instances {
+		stopErr = errors.Join(stopErr, s.stopInstance(instance))
+	}
+	return stopErr
+}
+
+func (s *Supervisor) reconcileProgram(runtime *programRuntime, next config.ConfigurationProgram) error {
+	previous := runtime.config
+	wasActive := runtimeHasActiveInstance(runtime)
+	launchChanged := !sameLaunchConfiguration(previous, next)
+	toStart := make([]*instanceRuntime, 0)
+	var reconcileErr error
+
+	if launchChanged {
+		for _, instance := range runtime.instances {
+			if err := s.stopInstance(instance); err != nil {
+				reconcileErr = errors.Join(reconcileErr, err)
+			}
+			toStart = append(toStart, instance)
+		}
+	}
+
+	if next.ProcessNb < uint(len(runtime.instances)) {
+		for index := len(runtime.instances) - 1; index >= int(next.ProcessNb); index-- {
+			if err := s.stopInstance(runtime.instances[index]); err != nil {
+				reconcileErr = errors.Join(reconcileErr, err)
+			}
+		}
+		runtime.instances = runtime.instances[:next.ProcessNb]
+	}
+	if next.ProcessNb > uint(len(runtime.instances)) {
+		for number := uint(len(runtime.instances) + 1); number <= next.ProcessNb; number++ {
+			instance := newInstanceRuntime(runtime.name, number, next)
+			runtime.instances = append(runtime.instances, instance)
+			toStart = append(toStart, instance)
+		}
+	}
+
+	if !previous.Journey.AutoStart && next.Journey.AutoStart && !launchChanged {
+		for _, instance := range runtime.instances {
+			toStart = appendUniqueInstance(toStart, instance)
+		}
+	}
+	for _, instance := range runtime.instances {
+		instance.mu.Lock()
+		instance.config = next
+		instance.mu.Unlock()
+	}
+	runtime.config = next
+
+	if !wasActive && !next.Journey.AutoStart {
+		return reconcileErr
+	}
+	return errors.Join(reconcileErr, s.startInstances(runtime, toStart, true))
+}
+
+func appendUniqueInstance(instances []*instanceRuntime, candidate *instanceRuntime) []*instanceRuntime {
+	for _, instance := range instances {
+		if instance == candidate {
+			return instances
+		}
+	}
+	return append(instances, candidate)
+}
+
+func runtimeHasActiveInstance(runtime *programRuntime) bool {
+	for _, instance := range runtime.instances {
+		instance.mu.Lock()
+		active := instance.process != nil && (instance.process.Status() == process.STARTING || instance.process.Status() == process.RUNNING || instance.process.Status() == process.STOPPING)
+		instance.mu.Unlock()
+		if active {
+			return true
+		}
+	}
+	return false
+}
+
+func sameLaunchConfiguration(left, right config.ConfigurationProgram) bool {
+	return reflect.DeepEqual(left.Command, right.Command) &&
+		left.Workdir == right.Workdir &&
+		left.Umask == right.Umask &&
+		reflect.DeepEqual(left.Output, right.Output) &&
+		reflect.DeepEqual(left.Environment, right.Environment)
 }
 
 func (s *Supervisor) startInstance(instance *instanceRuntime, manual bool) error {

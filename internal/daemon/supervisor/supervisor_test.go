@@ -250,6 +250,120 @@ func TestSupervisorSnapshotsAreSafeToReadConcurrently(t *testing.T) {
 	}
 }
 
+func TestSupervisorReloadPreservesCompatibleRunningProcess(t *testing.T) {
+	program := testProgram([]string{"/bin/sleep", "30"}, 1, false, config.RestartNever, 0, 0)
+	s := newTestSupervisor(t, program)
+	if err := s.StartProgram("worker"); err != nil {
+		t.Fatalf("StartProgram() error = %v", err)
+	}
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		return snapshot.Programs[0].Instances[0].State == process.RUNNING
+	})
+	firstPID := s.Snapshot().Programs[0].Instances[0].PID
+
+	updated := program
+	updated.Journey.HealthTime = 25
+	updated.Journey.RestartPolicy.RestartCase = string(config.RestartUnexpected)
+	updated.Journey.RestartPolicy.RestartNb = 2
+	if err := s.Reload(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{"worker": updated}}); err != nil {
+		t.Fatalf("Reload() error = %v", err)
+	}
+	current := s.Snapshot().Programs[0].Instances[0]
+	if current.PID != firstPID || current.State != process.RUNNING {
+		t.Fatalf("reloaded instance = %+v, want same running process with PID %d", current, firstPID)
+	}
+	if err := s.StopProgram("worker"); err != nil {
+		t.Fatalf("StopProgram() error = %v", err)
+	}
+}
+
+func TestSupervisorReloadReconcilesInstanceCount(t *testing.T) {
+	program := testProgram([]string{"/bin/sleep", "30"}, 1, false, config.RestartNever, 0, 0)
+	s := newTestSupervisor(t, program)
+	if err := s.StartProgram("worker"); err != nil {
+		t.Fatalf("StartProgram() error = %v", err)
+	}
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		return snapshot.Programs[0].Instances[0].State == process.RUNNING
+	})
+	firstPID := s.Snapshot().Programs[0].Instances[0].PID
+
+	updated := program
+	updated.ProcessNb = 2
+	if err := s.Reload(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{"worker": updated}}); err != nil {
+		t.Fatalf("Reload() adding instance error = %v", err)
+	}
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		return len(snapshot.Programs[0].Instances) == 2 && snapshot.Programs[0].Instances[1].State == process.RUNNING
+	})
+	current := s.Snapshot().Programs[0]
+	if current.Instances[0].PID != firstPID {
+		t.Fatalf("first instance PID = %d, want preserved PID %d", current.Instances[0].PID, firstPID)
+	}
+
+	updated.ProcessNb = 1
+	if err := s.Reload(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{"worker": updated}}); err != nil {
+		t.Fatalf("Reload() removing instance error = %v", err)
+	}
+	current = s.Snapshot().Programs[0]
+	if len(current.Instances) != 1 || current.Instances[0].PID != firstPID {
+		t.Fatalf("after removal = %+v, want one preserved instance with PID %d", current, firstPID)
+	}
+	if err := s.StopProgram("worker"); err != nil {
+		t.Fatalf("StopProgram() error = %v", err)
+	}
+}
+
+func TestSupervisorReloadRestartsChangedLaunchConfiguration(t *testing.T) {
+	program := testProgram([]string{"/bin/sleep", "30"}, 1, false, config.RestartNever, 0, 0)
+	s := newTestSupervisor(t, program)
+	if err := s.StartProgram("worker"); err != nil {
+		t.Fatalf("StartProgram() error = %v", err)
+	}
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		return snapshot.Programs[0].Instances[0].State == process.RUNNING
+	})
+	firstPID := s.Snapshot().Programs[0].Instances[0].PID
+
+	updated := program
+	updated.Command = []string{"/bin/sleep", "31"}
+	if err := s.Reload(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{"worker": updated}}); err != nil {
+		t.Fatalf("Reload() error = %v", err)
+	}
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		instance := snapshot.Programs[0].Instances[0]
+		return instance.State == process.RUNNING && instance.PID != firstPID
+	})
+	if err := s.StopProgram("worker"); err != nil {
+		t.Fatalf("StopProgram() error = %v", err)
+	}
+}
+
+func TestSupervisorReloadRejectsInvalidConfigurationWithoutChangingState(t *testing.T) {
+	program := testProgram([]string{"/bin/sleep", "30"}, 1, false, config.RestartNever, 0, 0)
+	s := newTestSupervisor(t, program)
+	if err := s.StartProgram("worker"); err != nil {
+		t.Fatalf("StartProgram() error = %v", err)
+	}
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		return snapshot.Programs[0].Instances[0].State == process.RUNNING
+	})
+	firstPID := s.Snapshot().Programs[0].Instances[0].PID
+
+	if err := s.Reload(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{
+		"broken": {Command: []string{"/does/not/exist"}},
+	}}); err == nil {
+		t.Fatal("Reload() expected invalid configuration error")
+	}
+	snapshot := s.Snapshot()
+	if len(snapshot.Programs) != 1 || snapshot.Programs[0].Name != "worker" || snapshot.Programs[0].Instances[0].PID != firstPID {
+		t.Fatalf("state after rejected reload = %+v, want unchanged worker PID %d", snapshot, firstPID)
+	}
+	if err := s.StopProgram("worker"); err != nil {
+		t.Fatalf("StopProgram() error = %v", err)
+	}
+}
+
 func testProgram(command []string, processNb uint, autostart bool, policy config.RestartCase, restartNb uint, healthTime uint) config.ConfigurationProgram {
 	return config.ConfigurationProgram{
 		Command:   command,
