@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
 )
@@ -52,17 +54,18 @@ func (p *Process) closeOutputFiles() error {
 }
 
 func New(name string, conf config.ConfigurationProgram) (*Process, error) {
-	if len(conf.Command) == 0 {
-		return nil, fmt.Errorf("error while creating the process")
+	if err := conf.Normalize(); err != nil {
+		return nil, fmt.Errorf("configure process %q: %w", name, err)
 	}
-	cmd := exec.Command(conf.Command[0], conf.Command[1:]...)
+
+	cmd := commandFor(conf)
 	cmd.Dir = conf.Workdir
 
-	cmd.Env = os.Environ()
-
-	for key, value := range conf.Environment {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
 	}
+
+	cmd.Env = mergedEnvironment(conf.Environment)
 
 	var err error
 	var stdoutFile *os.File
@@ -98,6 +101,38 @@ func New(name string, conf config.ConfigurationProgram) (*Process, error) {
 		stderrFile: stderrFile,
 		done:       make(chan struct{}),
 	}, nil
+}
+
+// commandFor applies umask in the child process. Using syscall.Umask in the
+// parent around Cmd.Start would race with concurrent process starts and would
+// temporarily alter the daemon's own umask. The small exec wrapper exits from
+// the shell before the configured program runs, so the configured command
+// remains the child process in the same process group.
+func commandFor(conf config.ConfigurationProgram) *exec.Cmd {
+	args := []string{"-c", "umask \"$1\"\nshift\nexec \"$@\"", "taskmaster-umask", conf.Umask, conf.Command[0]}
+	args = append(args, conf.Command[1:]...)
+	return exec.Command("/bin/sh", args...)
+}
+
+func mergedEnvironment(overrides map[string]string) []string {
+	environment := os.Environ()
+	positions := make(map[string]int, len(environment)+len(overrides))
+	for index, entry := range environment {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok {
+			positions[key] = index
+		}
+	}
+	for key, value := range overrides {
+		entry := fmt.Sprintf("%s=%s", key, value)
+		if index, ok := positions[key]; ok {
+			environment[index] = entry
+			continue
+		}
+		positions[key] = len(environment)
+		environment = append(environment, entry)
+	}
+	return environment
 }
 
 func (p *Process) Start() error {

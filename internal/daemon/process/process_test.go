@@ -119,6 +119,34 @@ func TestProcessWaitFailure(t *testing.T) {
 	}
 }
 
+func TestProcessAppliesUmaskInChild(t *testing.T) {
+	dir := t.TempDir()
+	createdPath := filepath.Join(dir, "created-by-child")
+
+	p, err := New("umask", config.ConfigurationProgram{
+		Command: []string{"/bin/sh", "-c", "touch created-by-child"},
+		Workdir: dir,
+		Umask:   "077",
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := p.Start(); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := p.Wait(); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+
+	info, err := os.Stat(createdPath)
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("child file mode = %o, want 600", got)
+	}
+}
+
 func environmentValue(environment []string, key string) string {
 	prefix := key + "="
 	for i := len(environment) - 1; i >= 0; i-- {

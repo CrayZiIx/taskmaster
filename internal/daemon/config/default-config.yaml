@@ -1,88 +1,42 @@
+# Taskmaster configuration example.
+# Empty output paths inherit the daemon's stdout and stderr.
 taskmaster:
-    ls:
-        workdir: "" 
-        umask: "022"
+  echo:
+    cmd: ["/bin/echo", "hello from taskmaster"]
+    workdir: ""
+    umask: "022"
+    process-nb: 1
+    env:
+      APP_ENV: "prod"
+    output:
+      stdout: ""
+      stderr: ""
+    journey:
+      autostart: false
+      health-time: 1000
+      restart-policy:
+        restart-case: "never"
+        restart-nb: 0
+      exit:
+        code: [0]
+        signal: ["SIGTERM"]
+        timeout-ms: 5000
 
-        cmd: # allow the user to add args has much as he want 
-            - "/bin/ls"
-            - "-l"
-        
-        journey:
-            autostart: false #boolean
-            health-time: 1000 # in ms
-        
-            restart-policy:
-                restart-case: "unexpected" # always, never, unexpected
-                restart-nb: 3 # amount of restart before aborting the process
-
-            exit: 
-                code: [0] # list of exit code 
-                signal: ["SIGTERM"] #list of signals that exit the process
-                timeout-ms: 5000 # in ms 
-
-        process-nb: 1 # the number of process we want to run
-
-        output:
-            stdout: "/dev/null"
-            stderr: "/dev/null"
-        env:
-            APP_ENV: "prod"
-            LOG_LEVEL: "info"
-
-    echo_test:
-        workdir: "/usr/" 
-        umask: "022"
-
-        cmd: # allow the user to add args has much as he want 
-            - "/bin/echo"
-            - "test"
-        
-        journey:
-            autostart: false #boolean
-            health-time: 1000 # in ms
-        
-            restart-policy:
-                restart-case: "unexpected" # always, never, unexpected
-                restart-nb: 3 # amount of restart before aborting the process
-
-            exit: 
-                code: [0] # list of exit code 
-                signal: ["SIGTERM"] #list of signals that exit the process
-                timeout-ms: 5000 # in ms 
-
-        process-nb: 1 # the number of process we want to run
-
-        output:
-            stdout: "/dev/null"
-            stderr: "/dev/null"
-        env:
-            APP_ENV: "prod"
-            LOG_LEVEL: "info"
-
-    sleep:
-        workdir: "" 
-        umask: "022"
-
-        cmd: # allow the user to add args has much as he want 
-            - "/bin/sleep"
-            - "10"
-        
-        journey:
-            autostart: true #boolean
-            health-time: 1000 # in ms
-        
-            restart-policy:
-                restart-case: "unexpected" # always, never, unexpected
-                restart-nb: 3 # amount of restart before aborting the process
-
-            exit: 
-                code: [0] # list of exit code 
-                signal: ["SIGTERM"] #list of signals that exit the process
-                timeout-ms: 5000 # in ms 
-
-        process-nb: 1 # the number of process we want to run
-
-        output:
-            stdout: "/dev/null"
-            stderr: "/dev/null"
-        env:
+  sleep:
+    cmd: ["/bin/sleep", "10"]
+    workdir: ""
+    umask: "022"
+    process-nb: 1
+    output:
+      stdout: "/dev/null"
+      stderr: "/dev/null"
+    journey:
+      autostart: true
+      health-time: 1000
+      restart-policy:
+        restart-case: "unexpected"
+        restart-nb: 3
+      exit:
+        code: [0]
+        signal: ["SIGTERM"]
+        timeout-ms: 5000

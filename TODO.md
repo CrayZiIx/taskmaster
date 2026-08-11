@@ -8,25 +8,25 @@ implemented by my teammate and is therefore kept as an integration task here.
 - [x] Load a YAML configuration file.
 - [x] Support one or more named programs under `taskmaster`.
 - [x] Parse the command and all command-line arguments.
-- [ ] Validate that every program has a usable command.
-- [ ] Validate invalid values and combinations with clear error messages.
-- [ ] Apply the configured working directory (`workdir`).
-- [ ] Apply the configured file creation mask (`umask`).
-- [ ] Apply configured environment variables (`env`).
-- [ ] Configure stdout and stderr destinations (`output`).
-- [ ] Parse the process count (`process-nb`).
-- [ ] Parse the journey settings:
-  - [ ] `autostart`
-  - [ ] `health-time`
-  - [ ] restart case: `always`, `never`, or `unexpected`
-  - [ ] maximum restart count (`restart-nb`)
-  - [ ] accepted exit codes (`exit.code`)
-  - [ ] accepted exit signals (`exit.signal`)
-  - [ ] exit timeout (`exit.timeout-ms`)
-- [ ] Define and document defaults for optional configuration values.
+- [x] Validate that every program has a usable command.
+- [x] Validate invalid values and combinations with clear error messages.
+- [x] Apply the configured working directory (`workdir`).
+- [x] Apply the configured file creation mask (`umask`).
+- [x] Apply configured environment variables (`env`).
+- [x] Configure stdout and stderr destinations (`output`).
+- [x] Parse the process count (`process-nb`).
+- [x] Parse the journey settings:
+  - [x] `autostart`
+  - [x] `health-time`
+  - [x] restart case: `always`, `never`, or `unexpected`
+  - [x] maximum restart count (`restart-nb`)
+  - [x] accepted exit codes (`exit.code`)
+  - [x] accepted exit signals (`exit.signal`)
+  - [x] exit timeout (`exit.timeout-ms`)
+- [x] Define and document defaults for optional configuration values.
 - [ ] Reload the configuration safely without unnecessarily stopping running
   processes.
-- [ ] Add configuration tests for valid files, invalid YAML, unknown fields,
+- [x] Add configuration tests for valid files, invalid YAML, unknown fields,
   missing fields, invalid values, and reloads.
 
 ## 2. Process management
