@@ -84,8 +84,8 @@ implemented by my teammate and is therefore kept as an integration task here.
 
 ## 5. Reliability and delivery
 
-- [ ] Run `go test ./...` successfully.
-- [ ] Run the race detector and fix detected data races.
+- [x] Run `go test ./...` successfully.
+- [x] Run the race detector and fix detected data races.
 - [ ] Test commands that exit immediately, fail to start, run forever, and
   ignore the first stop signal.
 - [ ] Test multiple programs and multiple instances at the same time.
@@ -94,7 +94,7 @@ implemented by my teammate and is therefore kept as an integration task here.
 - [ ] Review goroutine, file-descriptor, and process cleanup.
 - [ ] Add useful logs for starts, stops, exits, restarts, and errors.
 - [ ] Write build and usage instructions.
-- [ ] Add a complete example configuration.
+- [x] Add a complete example configuration.
 - [ ] Perform a clean-clone build and final manual test.
 
 ## Bonus: Unix socket control interface
@@ -120,5 +120,5 @@ stable.
   project documentation.
 - [ ] The daemon manages all configured process instances reliably.
 - [ ] The TUI can control the backend through the agreed interface.
-- [ ] Tests pass, including race and cleanup tests.
+- [x] Tests pass, including race and cleanup tests.
 - [ ] The Unix socket bonus is either complete or clearly marked as optional.
