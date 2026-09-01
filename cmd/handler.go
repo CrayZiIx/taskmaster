@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -46,9 +47,13 @@ func commandHandler(ctx context.Context, daemon *backend.Backend) tui.CommandHan
 				"restart": backend.ActionRestart,
 			}[command]
 			if _, err := daemon.Execute(ctx, backend.Request{Action: action, Program: args[0]}); err != nil {
+				if command == "stop" && errors.Is(err, backend.ErrProgramAlreadyStopped) {
+					return "", fmt.Errorf("%s: already stopped", args[0])
+				}
 				return "", err
 			}
-			return fmt.Sprintf("%s: %s", args[0], command+"ed"), nil
+			verb := map[string]string{"start": "started", "stop": "stopped", "restart": "restarted"}[command]
+			return fmt.Sprintf("%s: %s", args[0], verb), nil
 		case "reload":
 			if len(args) > 1 {
 				return "", fmt.Errorf("usage: reload [config-path]")
@@ -81,7 +86,7 @@ func formatStatus(response backend.Response) string {
 		for _, instance := range program.Instances {
 			rows = append(rows, tui.StatusRow{
 				Name:   instance.Name,
-				Status: displayState(instance.State),
+				Status: displayState(instance),
 				Info:   formatInstanceInfo(instance),
 			})
 		}
@@ -89,8 +94,8 @@ func formatStatus(response backend.Response) string {
 	return tui.FormatStatusTable(rows)
 }
 
-func displayState(state string) string {
-	switch state {
+func displayState(instance backend.InstanceStatus) string {
+	switch instance.State {
 	case "running":
 		return "RUNNING"
 	case "starting":
@@ -100,9 +105,12 @@ func displayState(state string) string {
 	case "not_started", "exited_without_error":
 		return "STOPPED"
 	case "exited_with_error", "start_failed":
+		if instance.LastExit.StopRequested {
+			return "STOPPED"
+		}
 		return "FATAL"
 	default:
-		return strings.ToUpper(state)
+		return strings.ToUpper(instance.State)
 	}
 }
 
@@ -114,9 +122,17 @@ func formatInstanceInfo(instance backend.InstanceStatus) string {
 	parts = append(parts, "healthy="+strconv.FormatBool(instance.Healthy))
 	parts = append(parts, "restarts="+strconv.FormatUint(uint64(instance.RestartCount), 10))
 	if instance.LastExit.ExitedBySignal {
-		parts = append(parts, "signal="+instance.LastExit.Signal)
+		key := "signal"
+		if instance.State == "exited_with_error" && !instance.LastExit.StopRequested {
+			key = "unexpected_signal"
+		}
+		parts = append(parts, key+"="+instance.LastExit.Signal)
 	} else if instance.LastExit.ExitCode >= 0 {
-		parts = append(parts, "exit="+strconv.Itoa(instance.LastExit.ExitCode))
+		key := "exit"
+		if instance.State == "exited_with_error" && !instance.LastExit.StopRequested {
+			key = "unexpected_exit"
+		}
+		parts = append(parts, key+"="+strconv.Itoa(instance.LastExit.ExitCode))
 	}
 	if instance.LastError != "" {
 		parts = append(parts, "error="+instance.LastError)

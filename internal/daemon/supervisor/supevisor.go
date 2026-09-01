@@ -24,6 +24,7 @@ var (
 	ErrSupervisorRunning      = errors.New("supervisor is already running")
 	ErrSupervisorShuttingDown = errors.New("supervisor is shutting down")
 	ErrInstanceStarting       = errors.New("process instance is starting")
+	ErrProgramAlreadyStopped  = errors.New("program is already stopped")
 )
 
 type Supervisor struct {
@@ -252,10 +253,17 @@ func (s *Supervisor) StopProgram(name string) error {
 	defer runtime.opMu.Unlock()
 
 	var stopErr error
+	active := false
 	for _, instance := range runtime.instances {
+		if instanceIsActive(instance) {
+			active = true
+		}
 		if err := s.stopInstance(instance); err != nil {
 			stopErr = errors.Join(stopErr, err)
 		}
+	}
+	if stopErr == nil && !active {
+		return fmt.Errorf("%w: %s", ErrProgramAlreadyStopped, name)
 	}
 	return stopErr
 }
@@ -768,6 +776,19 @@ func (s *Supervisor) stopInstance(instance *instanceRuntime) error {
 	}
 	s.recordProcessCompletion(instance, p, instanceGeneration(instance, p))
 	return err
+}
+
+func instanceIsActive(instance *instanceRuntime) bool {
+	instance.mu.Lock()
+	defer instance.mu.Unlock()
+	if instance.starting {
+		return true
+	}
+	if instance.process == nil {
+		return false
+	}
+	state := instance.process.Status()
+	return state == process.STARTING || state == process.RUNNING || state == process.STOPPING
 }
 
 func instanceGeneration(instance *instanceRuntime, p *process.Process) uint64 {

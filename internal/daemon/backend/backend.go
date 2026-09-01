@@ -28,11 +28,12 @@ const (
 )
 
 var (
-	ErrUnknownAction       = errors.New("unknown backend action")
-	ErrProgramRequired     = errors.New("program is required")
-	ErrConfigPathRequired  = errors.New("configuration path is required")
-	ErrConfigurationReload = errors.New("configuration reload failed")
-	ErrProgramNotFound     = supervisor.ErrProgramNotFound
+	ErrUnknownAction         = errors.New("unknown backend action")
+	ErrProgramRequired       = errors.New("program is required")
+	ErrConfigPathRequired    = errors.New("configuration path is required")
+	ErrConfigurationReload   = errors.New("configuration reload failed")
+	ErrProgramNotFound       = supervisor.ErrProgramNotFound
+	ErrProgramAlreadyStopped = supervisor.ErrProgramAlreadyStopped
 )
 
 // Request is the stable command shape used by the TUI.

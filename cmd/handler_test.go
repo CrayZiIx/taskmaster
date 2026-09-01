@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/backend"
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
@@ -48,9 +49,54 @@ func TestCommandHandlerMapsAllDaemonActions(t *testing.T) {
 	if _, err := handler("stop", []string{"worker"}); err != nil {
 		t.Fatalf("stop error = %v", err)
 	}
+	output, err = handler("status", []string{"worker"})
+	if err != nil || !strings.Contains(output, "STOPPED") || strings.Contains(output, "FATAL") {
+		t.Fatalf("stopped status = %q, error = %v", output, err)
+	}
+	if _, err := handler("stop", []string{"worker"}); err == nil || err.Error() != "worker: already stopped" {
+		t.Fatalf("second stop error = %v, want worker: already stopped", err)
+	}
 	if _, err := handler("quit", nil); !errors.Is(err, tui.ErrExit) {
 		t.Fatalf("quit error = %v, want tui.ErrExit", err)
 	}
+}
+
+func TestCommandHandlerReportsUnexpectedSignal(t *testing.T) {
+	s, err := supervisor.New(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{
+		"worker": {
+			Command:   []string{"/bin/sh", "-c", "kill -TERM $$"},
+			ProcessNb: 1,
+			Output:    config.OutputType{Stdout: "/dev/null", Stderr: "/dev/null"},
+		},
+	}})
+	if err != nil {
+		t.Fatalf("supervisor.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Shutdown() })
+	daemon, err := backend.New(s, "")
+	if err != nil {
+		t.Fatalf("backend.New() error = %v", err)
+	}
+	handler := commandHandler(context.Background(), daemon)
+	if _, err := handler("start", []string{"worker"}); err != nil {
+		t.Fatalf("start error = %v", err)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := handler("status", []string{"worker"})
+		if err != nil {
+			t.Fatalf("status error = %v", err)
+		}
+		if strings.Contains(output, "FATAL") {
+			if !strings.Contains(output, "unexpected_signal=SIGTERM") {
+				t.Fatalf("fatal status = %q, want unexpected signal", output)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("process did not reach fatal status")
 }
 
 func TestCommandHandlerValidatesCommands(t *testing.T) {
@@ -89,11 +135,14 @@ func TestCommandHandlerValidatesCommands(t *testing.T) {
 }
 
 func TestDisplayStateAndInstanceInfo(t *testing.T) {
-	if got := displayState(string(process.RUNNING)); got != "RUNNING" {
+	if got := displayState(backend.InstanceStatus{State: string(process.RUNNING)}); got != "RUNNING" {
 		t.Fatalf("displayState(running) = %q", got)
 	}
-	if got := displayState(string(process.EXITED_WERROR)); got != "FATAL" {
+	if got := displayState(backend.InstanceStatus{State: string(process.EXITED_WERROR)}); got != "FATAL" {
 		t.Fatalf("displayState(exited_with_error) = %q", got)
+	}
+	if got := displayState(backend.InstanceStatus{State: string(process.EXITED_WERROR), LastExit: backend.ExitStatus{StopRequested: true}}); got != "STOPPED" {
+		t.Fatalf("displayState(manual stop) = %q", got)
 	}
 	info := formatInstanceInfo(backend.InstanceStatus{
 		PID:          42,
@@ -106,5 +155,12 @@ func TestDisplayStateAndInstanceInfo(t *testing.T) {
 		if !strings.Contains(info, want) {
 			t.Fatalf("info = %q, want %q", info, want)
 		}
+	}
+	unexpected := formatInstanceInfo(backend.InstanceStatus{
+		State:    string(process.EXITED_WERROR),
+		LastExit: backend.ExitStatus{ExitedBySignal: true, Signal: "SIGTERM"},
+	})
+	if !strings.Contains(unexpected, "unexpected_signal=SIGTERM") {
+		t.Fatalf("unexpected info = %q, want unexpected signal", unexpected)
 	}
 }
