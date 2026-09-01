@@ -10,17 +10,24 @@ import (
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/backend"
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
+	daemonlogging "github.com/CrayZiIx/taskmaster/internal/daemon/logging"
 	"github.com/CrayZiIx/taskmaster/internal/daemon/supervisor"
 	"github.com/CrayZiIx/taskmaster/internal/tui"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-
 	configPath := config.DefaultConfigPath
 	if len(os.Args) > 1 && os.Args[1] != "" {
 		configPath = os.Args[1]
 	}
+
+	runLogger, err := daemonlogging.Open(daemonlogging.DefaultDirectory, configPath)
+	if err != nil {
+		slog.New(slog.NewTextHandler(os.Stderr, nil)).Error("log initialization failed", "error", err)
+		return
+	}
+	defer func() { _ = runLogger.Close() }()
+	logger := runLogger.Logger()
 
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {

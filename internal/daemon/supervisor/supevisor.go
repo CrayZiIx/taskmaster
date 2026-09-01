@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"reflect"
 	"sort"
@@ -132,7 +133,7 @@ func ShouldRestart(policy string, classification ExitClassification) bool {
 }
 
 func New(cfg *config.ConfigurationFile) (*Supervisor, error) {
-	return NewWithLogger(cfg, slog.Default())
+	return NewWithLogger(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 // NewWithLogger creates a supervisor using logger for lifecycle and error
