@@ -364,6 +364,51 @@ func TestSupervisorReloadRejectsInvalidConfigurationWithoutChangingState(t *test
 	}
 }
 
+func TestSupervisorRunsMultipleProgramsAndInstancesTogether(t *testing.T) {
+	cfg := &config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{
+		"alpha": testProgram([]string{"/bin/sleep", "30"}, 2, true, config.RestartNever, 0, 0),
+		"beta":  testProgram([]string{"/bin/sleep", "30"}, 2, true, config.RestartNever, 0, 0),
+	}}
+	s, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	runDone := runTestSupervisor(t, s)
+	waitForSnapshot(t, s, func(snapshot Snapshot) bool {
+		if len(snapshot.Programs) != 2 {
+			return false
+		}
+		for _, program := range snapshot.Programs {
+			if len(program.Instances) != 2 {
+				return false
+			}
+			for _, instance := range program.Instances {
+				if instance.State != process.RUNNING || instance.PID <= 0 {
+					return false
+				}
+			}
+		}
+		return true
+	})
+
+	snapshot := s.Snapshot()
+	pids := make(map[int]struct{}, 4)
+	for _, program := range snapshot.Programs {
+		for _, instance := range program.Instances {
+			pids[instance.PID] = struct{}{}
+		}
+	}
+	if len(pids) != 4 {
+		t.Fatalf("running process IDs = %d, want four independent processes", len(pids))
+	}
+	if err := s.Shutdown(); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if err := <-runDone; err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+}
+
 func testProgram(command []string, processNb uint, autostart bool, policy config.RestartCase, restartNb uint, healthTime uint) config.ConfigurationProgram {
 	return config.ConfigurationProgram{
 		Command:   command,

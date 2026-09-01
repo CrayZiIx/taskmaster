@@ -48,11 +48,22 @@ func TestBackendExecutesLifecycleActions(t *testing.T) {
 		t.Fatalf("status response = %+v", response)
 	}
 
+	if _, err := b.Execute(context.Background(), Request{Action: ActionRestart, Program: "worker"}); err != nil {
+		t.Fatalf("restart error = %v", err)
+	}
+	waitForBackend(t, b, func(response Response) bool {
+		return response.Programs[0].Instances[0].State == string(process.RUNNING)
+	})
+
 	if _, err := b.Execute(context.Background(), Request{Action: ActionStop, Program: "worker"}); err != nil {
 		t.Fatalf("stop error = %v", err)
 	}
-	if err := s.Shutdown(); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
+	response, err = b.Execute(context.Background(), Request{Action: ActionShutdown})
+	if err != nil {
+		t.Fatalf("shutdown error = %v", err)
+	}
+	if !response.ShuttingDown {
+		t.Fatalf("shutdown response = %+v, want ShuttingDown=true", response)
 	}
 }
 
@@ -112,6 +123,41 @@ func TestBackendReturnsStableValidationErrors(t *testing.T) {
 	cancel()
 	if _, err := b.Execute(canceled, Request{Action: ActionList}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled context error = %v, want context.Canceled", err)
+	}
+	if err := s.Shutdown(); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+}
+
+func TestBackendResponsesDoNotExposeMutableSupervisorState(t *testing.T) {
+	s, err := supervisor.New(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{
+		"worker": {
+			Command:   []string{"/bin/sleep", "30"},
+			ProcessNb: 2,
+			Output:    config.OutputType{Stdout: "/dev/null", Stderr: "/dev/null"},
+		},
+	}})
+	if err != nil {
+		t.Fatalf("supervisor.New() error = %v", err)
+	}
+	b, err := New(s, "")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	response, err := b.Execute(context.Background(), Request{Action: ActionList})
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+	response.Programs[0].Name = "mutated"
+	response.Programs[0].Instances[0].Name = "mutated"
+	response.Programs = nil
+
+	current, err := b.Execute(context.Background(), Request{Action: ActionList})
+	if err != nil {
+		t.Fatalf("second list error = %v", err)
+	}
+	if len(current.Programs) != 1 || current.Programs[0].Name != "worker" || current.Programs[0].Instances[0].Name != "worker[1]" {
+		t.Fatalf("backend state was exposed through response mutation: %+v", current)
 	}
 	if err := s.Shutdown(); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)

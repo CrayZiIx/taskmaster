@@ -86,12 +86,12 @@ implemented by my teammate and is therefore kept as an integration task here.
 
 - [x] Run `go test ./...` successfully.
 - [x] Run the race detector and fix detected data races.
-- [ ] Test commands that exit immediately, fail to start, run forever, and
+- [x] Test commands that exit immediately, fail to start, run forever, and
   ignore the first stop signal.
-- [ ] Test multiple programs and multiple instances at the same time.
-- [ ] Test missing files, inaccessible output paths, invalid working
+- [x] Test multiple programs and multiple instances at the same time.
+- [x] Test missing files, inaccessible output paths, invalid working
   directories, and invalid configuration values.
-- [ ] Review goroutine, file-descriptor, and process cleanup.
+- [x] Review goroutine, file-descriptor, and process cleanup.
 - [ ] Add useful logs for starts, stops, exits, restarts, and errors.
 - [ ] Write build and usage instructions.
 - [x] Add a complete example configuration.

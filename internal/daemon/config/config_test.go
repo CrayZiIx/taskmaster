@@ -229,6 +229,13 @@ func TestLoadConfigUsesExplicitPath(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRejectsMissingFile(t *testing.T) {
+	_, err := LoadConfig(filepath.Join(t.TempDir(), "missing.yaml"))
+	if err == nil || !strings.Contains(err.Error(), "open configuration") {
+		t.Fatalf("LoadConfig() error = %v, want missing-file error", err)
+	}
+}
+
 func TestManagerReloadIsAtomic(t *testing.T) {
 	initial, err := ParseConfig(strings.NewReader("taskmaster:\n  old:\n    cmd: [echo, old]"))
 	if err != nil {

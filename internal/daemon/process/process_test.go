@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/CrayZiIx/taskmaster/internal/daemon/config"
 )
@@ -284,6 +285,53 @@ func TestProcessEscalatesAfterStopTimeout(t *testing.T) {
 	result := p.Result()
 	if !result.StopRequested || !result.TimedOut || result.Signal != "SIGKILL" {
 		t.Fatalf("Result() = %+v, want SIGKILL timeout result", result)
+	}
+}
+
+func TestProcessEscalatesWhenItIgnoresStopSignal(t *testing.T) {
+	p, err := New("ignores-stop", config.ConfigurationProgram{
+		Command: []string{"/bin/sh", "-c", "sleep 0.1; trap '' TERM; while :; do sleep 1; done"},
+		Journey: config.JourneyType{
+			Stop: config.StopType{Signal: "SIGTERM"},
+			Exit: config.ExitType{Timeout: 50},
+		},
+		Output: config.OutputType{Stdout: "/dev/null", Stderr: "/dev/null"},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := p.Start(); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if err := p.Stop(); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	result := p.Result()
+	if !result.StopRequested || !result.TimedOut || result.Signal != "SIGKILL" {
+		t.Fatalf("Result() = %+v, want SIGKILL after ignored SIGTERM", result)
+	}
+}
+
+func TestNewRejectsInaccessibleOutputAndClosesEarlierFile(t *testing.T) {
+	dir := t.TempDir()
+	stdoutPath := filepath.Join(dir, "stdout.log")
+	_, err := New("inaccessible-output", config.ConfigurationProgram{
+		Command: []string{"/bin/echo", "never"},
+		Output: config.OutputType{
+			Stdout: stdoutPath,
+			Stderr: filepath.Join(dir, "missing", "stderr.log"),
+		},
+	})
+	if err == nil {
+		t.Fatal("New() expected an inaccessible stderr error")
+	}
+	if _, statErr := os.Stat(stdoutPath); statErr != nil {
+		t.Fatalf("stdout file was not created before stderr failure: %v", statErr)
+	}
+	if removeErr := os.Remove(stdoutPath); removeErr != nil {
+		t.Fatalf("Remove(stdout) error = %v; earlier output file may still be open", removeErr)
 	}
 }
 
