@@ -1,0 +1,20 @@
+# This program exits with code 1 and is restarted three times before it is
+# marked as fatal and automatic restarts are disabled.
+taskmaster:
+  crash-loop:
+    cmd: ["/bin/sh", "-c", "exit 1"]
+    output:
+      stdout: "/dev/null"
+      stderr: "/dev/null"
+    journey:
+      autostart: true
+      health-time: 1000
+      restart-policy:
+        restart-case: unexpected
+        restart-nb: 3
+      exit:
+        code: [0]
+        signal: ["SIGTERM"]
+        timeout-ms: 5000
+      stop:
+        signal: "SIGTERM"

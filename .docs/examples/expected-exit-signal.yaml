@@ -1,0 +1,20 @@
+# exit.signal declares an accepted exit; it is not the signal sent by the
+# supervisor. This process terminates itself with SIGTERM and is considered
+# stopped normally rather than fatal.
+taskmaster:
+  expected-signal:
+    cmd: ["/bin/sh", "-c", "kill -TERM $$"]
+    output:
+      stdout: "/dev/null"
+      stderr: "/dev/null"
+    journey:
+      autostart: true
+      restart-policy:
+        restart-case: never
+        restart-nb: 0
+      exit:
+        code: [0]
+        signal: ["SIGTERM"]
+        timeout-ms: 5000
+      stop:
+        signal: "SIGTERM"

@@ -1,0 +1,25 @@
+# Relative output paths are resolved from the directory where Taskmaster is
+# launched. The files are created if they do not already exist.
+taskmaster:
+  reporter:
+    cmd:
+      - "/bin/sh"
+      - "-c"
+      - "printf 'stdout: %s\\n' \"$APP_ENV\"; printf 'stderr: %s\\n' \"$LOG_LEVEL\" >&2"
+    env:
+      APP_ENV: "development"
+      LOG_LEVEL: "info"
+    output:
+      stdout: "./taskmaster.stdout.log"
+      stderr: "./taskmaster.stderr.log"
+    journey:
+      autostart: false
+      restart-policy:
+        restart-case: never
+        restart-nb: 0
+      exit:
+        code: [0]
+        signal: []
+        timeout-ms: 5000
+      stop:
+        signal: "SIGTERM"

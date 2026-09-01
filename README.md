@@ -87,6 +87,28 @@ The status output uses these main states:
   the supervisor.
 - `FATAL`: the process exited unexpectedly or failed to start.
 
+## Example configurations
+
+Additional ready-to-run examples are available in
+[`.docs/examples/`](.docs/examples/):
+
+- [`minimal.yaml`](.docs/examples/minimal.yaml): the smallest configuration.
+- [`multi-instance.yaml`](.docs/examples/multi-instance.yaml): three
+  independent instances with autostart.
+- [`restart-on-crash.yaml`](.docs/examples/restart-on-crash.yaml): an
+  intentional crash loop with a restart limit.
+- [`output-and-environment.yaml`](.docs/examples/output-and-environment.yaml):
+  environment overrides and separate stdout/stderr log files.
+- [`expected-exit-signal.yaml`](.docs/examples/expected-exit-signal.yaml):
+  demonstrates that `exit.signal` declares an accepted exit signal; it does
+  not send one.
+
+For example:
+
+```sh
+go run ./cmd .docs/examples/multi-instance.yaml
+```
+
 ## Configuration
 
 Programs are declared below the top-level `taskmaster` key. A minimal example

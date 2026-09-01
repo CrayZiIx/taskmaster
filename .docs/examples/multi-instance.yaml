@@ -1,0 +1,22 @@
+# Start three independent instances of the same program.
+taskmaster:
+  worker:
+    cmd: ["/bin/sleep", "30"]
+    process-nb: 3
+    output:
+      stdout: "/dev/null"
+      stderr: "/dev/null"
+    env:
+      EXAMPLE_NAME: "multi-instance"
+    journey:
+      autostart: true
+      health-time: 1000
+      restart-policy:
+        restart-case: never
+        restart-nb: 0
+      exit:
+        code: [0]
+        signal: ["SIGTERM"]
+        timeout-ms: 5000
+      stop:
+        signal: "SIGTERM"

@@ -1,0 +1,4 @@
+# Smallest useful configuration. Optional fields use Taskmaster defaults.
+taskmaster:
+  hello:
+    cmd: ["/bin/echo", "hello from taskmaster"]
