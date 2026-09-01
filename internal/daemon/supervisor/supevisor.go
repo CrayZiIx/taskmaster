@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
@@ -38,6 +39,7 @@ type Supervisor struct {
 	running      bool
 	shuttingDown bool
 	monitorWG    sync.WaitGroup
+	logger       *slog.Logger
 }
 
 type programRuntime struct {
@@ -130,8 +132,17 @@ func ShouldRestart(policy string, classification ExitClassification) bool {
 }
 
 func New(cfg *config.ConfigurationFile) (*Supervisor, error) {
+	return NewWithLogger(cfg, slog.Default())
+}
+
+// NewWithLogger creates a supervisor using logger for lifecycle and error
+// events. A nil logger uses slog.Default().
+func NewWithLogger(cfg *config.ConfigurationFile, logger *slog.Logger) (*Supervisor, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration must not be nil")
+	}
+	if logger == nil {
+		logger = slog.Default()
 	}
 	copy, err := cloneConfiguration(cfg)
 	if err != nil {
@@ -142,6 +153,7 @@ func New(cfg *config.ConfigurationFile) (*Supervisor, error) {
 		programs:     make(map[string]*programRuntime, len(copy.Programs)),
 		stopCh:       make(chan struct{}),
 		shutdownDone: make(chan struct{}),
+		logger:       logger.With("component", "supervisor"),
 	}
 	for name, programConfig := range copy.Programs {
 		s.programs[name] = newProgramRuntime(name, programConfig)
@@ -171,10 +183,13 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	s.mu.Unlock()
 
 	sort.Slice(programs, func(i, j int) bool { return programs[i].name < programs[j].name })
+	s.logger.Info("supervisor started", "program_count", len(programs))
 	s.controlMu.Lock()
 	for _, runtime := range programs {
 		if runtime.config.Journey.AutoStart {
-			_ = s.startProgram(runtime, false)
+			if err := s.startProgram(runtime, false); err != nil {
+				s.logger.Error("program autostart failed", "program", runtime.name, "error", err)
+			}
 		}
 	}
 	s.controlMu.Unlock()
@@ -189,6 +204,7 @@ func (s *Supervisor) Run(ctx context.Context) error {
 
 func (s *Supervisor) Shutdown() error {
 	s.shutdownOnce.Do(func() {
+		s.logger.Info("supervisor shutdown requested")
 		s.controlMu.Lock()
 		defer s.controlMu.Unlock()
 
@@ -224,29 +240,42 @@ func (s *Supervisor) Shutdown() error {
 		s.shutdownErr = stopErr
 		close(s.shutdownDone)
 		s.mu.Unlock()
+		if stopErr != nil {
+			s.logger.Error("supervisor shutdown failed", "error", stopErr)
+		} else {
+			s.logger.Info("supervisor shutdown complete")
+		}
 	})
 	return s.shutdownError()
 }
 
 func (s *Supervisor) StartProgram(name string) error {
+	s.logger.Info("program start requested", "program", name)
 	s.controlMu.Lock()
 	defer s.controlMu.Unlock()
 
 	runtime, err := s.program(name)
 	if err != nil {
+		s.logger.Error("program start failed", "program", name, "error", err)
 		return err
 	}
 	runtime.opMu.Lock()
 	defer runtime.opMu.Unlock()
-	return s.startProgram(runtime, true)
+	err = s.startProgram(runtime, true)
+	if err != nil {
+		s.logger.Error("program start failed", "program", name, "error", err)
+	}
+	return err
 }
 
 func (s *Supervisor) StopProgram(name string) error {
+	s.logger.Info("program stop requested", "program", name)
 	s.controlMu.Lock()
 	defer s.controlMu.Unlock()
 
 	runtime, err := s.program(name)
 	if err != nil {
+		s.logger.Error("program stop failed", "program", name, "error", err)
 		return err
 	}
 	runtime.opMu.Lock()
@@ -263,17 +292,23 @@ func (s *Supervisor) StopProgram(name string) error {
 		}
 	}
 	if stopErr == nil && !active {
+		s.logger.Warn("program stop ignored; already stopped", "program", name)
 		return fmt.Errorf("%w: %s", ErrProgramAlreadyStopped, name)
+	}
+	if stopErr != nil {
+		s.logger.Error("program stop failed", "program", name, "error", stopErr)
 	}
 	return stopErr
 }
 
 func (s *Supervisor) RestartProgram(name string) error {
+	s.logger.Info("program restart requested", "program", name)
 	s.controlMu.Lock()
 	defer s.controlMu.Unlock()
 
 	runtime, err := s.program(name)
 	if err != nil {
+		s.logger.Error("program restart failed", "program", name, "error", err)
 		return err
 	}
 	runtime.opMu.Lock()
@@ -286,9 +321,14 @@ func (s *Supervisor) RestartProgram(name string) error {
 		}
 	}
 	if stopErr != nil {
+		s.logger.Error("program restart stop phase failed", "program", name, "error", stopErr)
 		return stopErr
 	}
-	return s.startProgram(runtime, true)
+	err = s.startProgram(runtime, true)
+	if err != nil {
+		s.logger.Error("program restart failed", "program", name, "error", err)
+	}
+	return err
 }
 
 // Reload atomically reconciles the supervisor with a validated configuration.
@@ -298,12 +338,14 @@ func (s *Supervisor) RestartProgram(name string) error {
 func (s *Supervisor) Reload(cfg *config.ConfigurationFile) error {
 	copy, err := cloneConfiguration(cfg)
 	if err != nil {
+		s.logger.Error("configuration reload rejected", "error", err)
 		return err
 	}
 
 	s.controlMu.Lock()
 	defer s.controlMu.Unlock()
 	if s.isShuttingDown() {
+		s.logger.Warn("configuration reload ignored; supervisor is shutting down")
 		return ErrSupervisorShuttingDown
 	}
 
@@ -333,6 +375,7 @@ func (s *Supervisor) Reload(cfg *config.ConfigurationFile) error {
 		runtime := existing[name]
 		next, stillConfigured := copy.Programs[name]
 		if !stillConfigured {
+			s.logger.Info("program removed by configuration reload", "program", name)
 			reconcileErr = errors.Join(reconcileErr, s.stopProgramRuntime(runtime))
 			continue
 		}
@@ -357,6 +400,7 @@ func (s *Supervisor) Reload(cfg *config.ConfigurationFile) error {
 		runtime := newProgramRuntime(name, programConfig)
 		s.programs[name] = runtime
 		added = append(added, runtime)
+		s.logger.Info("program added by configuration reload", "program", name)
 	}
 	s.mu.Unlock()
 
@@ -365,6 +409,11 @@ func (s *Supervisor) Reload(cfg *config.ConfigurationFile) error {
 		if runtime.config.Journey.AutoStart {
 			reconcileErr = errors.Join(reconcileErr, s.startProgram(runtime, false))
 		}
+	}
+	if reconcileErr != nil {
+		s.logger.Error("configuration reload completed with errors", "error", reconcileErr)
+	} else {
+		s.logger.Info("configuration reload applied", "program_count", len(copy.Programs))
 	}
 	return reconcileErr
 }
@@ -472,6 +521,7 @@ func (s *Supervisor) reconcileProgram(runtime *programRuntime, next config.Confi
 	var reconcileErr error
 
 	if launchChanged {
+		s.logger.Info("program launch configuration changed; restarting instances", "program", runtime.name)
 		for _, instance := range runtime.instances {
 			if err := s.stopInstance(instance); err != nil {
 				reconcileErr = errors.Join(reconcileErr, err)
@@ -576,9 +626,10 @@ func (s *Supervisor) startInstance(instance *instanceRuntime, manual bool) error
 	instance.generation++
 	generation := instance.generation
 	number := instance.number
+	instanceConfig := instance.config
 	instance.mu.Unlock()
 
-	p, err := process.NewInstance(instance.programName, number, instance.config)
+	p, err := process.NewInstance(instance.programName, number, instanceConfig)
 	if err != nil {
 		s.recordStartFailure(instance, generation, err)
 		return err
@@ -604,9 +655,10 @@ func (s *Supervisor) startInstance(instance *instanceRuntime, manual bool) error
 		instance.lastError = nil
 	}
 	instance.mu.Unlock()
+	s.logger.Info("process started", "program", instance.programName, "instance", p.Name, "pid", p.PID(), "generation", generation, "manual", manual)
 
 	s.monitorWG.Add(1)
-	go s.monitorInstance(instance, p, generation, instance.config)
+	go s.monitorInstance(instance, p, generation, instanceConfig)
 	return nil
 }
 
@@ -654,7 +706,10 @@ func (s *Supervisor) recordStartFailure(instance *instanceRuntime, generation ui
 	instance.healthy = false
 	instance.lastExit = process.ExitInfo{ExitCode: -1, WaitErr: err}
 	instance.lastError = err
+	programName := instance.programName
+	instanceName := fmt.Sprintf("%s[%d]", programName, instance.number)
 	instance.mu.Unlock()
+	s.logger.Error("process start failed", "program", programName, "instance", instanceName, "generation", generation, "error", err)
 }
 
 func (s *Supervisor) recordProcessCompletion(instance *instanceRuntime, p *process.Process, generation uint64) {
@@ -665,13 +720,36 @@ func (s *Supervisor) recordProcessCompletion(instance *instanceRuntime, p *proce
 		return
 	}
 	manualStop := instance.manualStop
+	conf := instance.config
+	state := p.Status()
+	programName := instance.programName
+	instanceName := p.Name
 	instance.process = nil
 	instance.starting = false
-	instance.state = p.Status()
+	instance.state = state
 	instance.healthy = false
 	instance.lastExit = info
 	instance.lastError = info.WaitErr
 	instance.mu.Unlock()
+
+	attrs := []any{"program", programName, "instance", instanceName, "generation", generation, "state", state, "exit_code", info.ExitCode}
+	if info.Signal != "" {
+		attrs = append(attrs, "signal", info.Signal)
+	}
+	if info.TimedOut {
+		attrs = append(attrs, "timed_out", true)
+	}
+	if state == process.START_FAILED {
+		s.logger.Error("process start failed", append(attrs, "error", info.WaitErr)...)
+	} else if info.WaitErr != nil {
+		s.logger.Error("process wait failed", append(attrs, "error", info.WaitErr)...)
+	} else if manualStop || info.StopRequested {
+		s.logger.Info("process stopped", attrs...)
+	} else if ClassifyExit(info, conf) == ExpectedExit {
+		s.logger.Info("process exited", attrs...)
+	} else {
+		s.logger.Warn("process exited unexpectedly", attrs...)
+	}
 
 	if manualStop || s.isShuttingDown() {
 		return
@@ -691,9 +769,16 @@ func (s *Supervisor) scheduleRestart(instance *instanceRuntime, generation uint6
 	if s.isShuttingDown() {
 		return
 	}
+	instance.mu.Lock()
 	conf := instance.config
+	instance.mu.Unlock()
 	classification := ClassifyExit(info, conf)
-	if info.StopRequested || !ShouldRestart(conf.Journey.RestartPolicy.RestartCase, classification) {
+	if info.StopRequested {
+		s.logger.Debug("process restart skipped; stop was requested", "program", instance.programName, "instance", instanceName(instance), "reason", "manual_stop")
+		return
+	}
+	if !ShouldRestart(conf.Journey.RestartPolicy.RestartCase, classification) {
+		s.logger.Debug("process restart skipped by policy", "program", instance.programName, "instance", instanceName(instance), "classification", classification, "policy", conf.Journey.RestartPolicy.RestartCase)
 		return
 	}
 
@@ -705,6 +790,7 @@ func (s *Supervisor) scheduleRestart(instance *instanceRuntime, generation uint6
 	if instance.restartCount >= conf.Journey.RestartPolicy.RestartNb {
 		instance.restartDisabled = true
 		instance.mu.Unlock()
+		s.logger.Warn("process restart disabled; restart limit reached", "program", instance.programName, "instance", instanceName(instance), "restart_count", conf.Journey.RestartPolicy.RestartNb)
 		return
 	}
 	instance.restartCount++
@@ -712,10 +798,11 @@ func (s *Supervisor) scheduleRestart(instance *instanceRuntime, generation uint6
 	instance.healthy = false
 	instance.mu.Unlock()
 
+	delay := restartDelay(attempt)
+	s.logger.Warn("process restart scheduled", "program", instance.programName, "instance", instanceName(instance), "classification", classification, "attempt", attempt, "delay", delay)
 	s.monitorWG.Add(1)
 	go func() {
 		defer s.monitorWG.Done()
-		delay := restartDelay(attempt)
 		timer := time.NewTimer(delay)
 		defer timer.Stop()
 		select {
@@ -800,6 +887,10 @@ func instanceGeneration(instance *instanceRuntime, p *process.Process) uint64 {
 	return 0
 }
 
+func instanceName(instance *instanceRuntime) string {
+	return fmt.Sprintf("%s[%d]", instance.programName, instance.number)
+}
+
 func (s *Supervisor) program(name string) (*programRuntime, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -826,6 +917,9 @@ func (s *Supervisor) shutdownError() error {
 }
 
 func cloneConfiguration(source *config.ConfigurationFile) (*config.ConfigurationFile, error) {
+	if source == nil {
+		return nil, fmt.Errorf("configuration must not be nil")
+	}
 	copy := &config.ConfigurationFile{Programs: make(map[string]config.ConfigurationProgram, len(source.Programs))}
 	for name, sourceProgram := range source.Programs {
 		program := sourceProgram

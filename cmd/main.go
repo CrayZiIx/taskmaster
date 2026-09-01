@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	configPath := config.DefaultConfigPath
 	if len(os.Args) > 1 && os.Args[1] != "" {
@@ -23,18 +24,18 @@ func main() {
 
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		fmt.Println(err)
+		logger.Error("configuration load failed", "path", configPath, "error", err)
 		return
 	}
 
-	s, err := supervisor.New(cfg)
+	s, err := supervisor.NewWithLogger(cfg, logger)
 	if err != nil {
-		fmt.Println(err)
+		logger.Error("supervisor creation failed", "error", err)
 		return
 	}
 	daemon, err := backend.New(s, configPath)
 	if err != nil {
-		fmt.Println(err)
+		logger.Error("backend creation failed", "error", err)
 		return
 	}
 
@@ -47,13 +48,13 @@ func main() {
 
 	shell := tui.New(commandHandler(ctx, daemon))
 	if err := shell.RunContext(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		fmt.Fprintln(os.Stderr, "tui:", err)
+		logger.Error("TUI stopped with an error", "error", err)
 	}
 	shell.Close()
 	if err := s.Shutdown(); err != nil {
-		fmt.Fprintln(os.Stderr, "supervisor shutdown:", err)
+		logger.Error("supervisor shutdown failed", "error", err)
 	}
 	if err := <-supervisorDone; err != nil && !errors.Is(err, supervisor.ErrSupervisorShuttingDown) {
-		fmt.Fprintln(os.Stderr, "supervisor:", err)
+		logger.Error("supervisor stopped with an error", "error", err)
 	}
 }
