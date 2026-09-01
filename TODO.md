@@ -78,8 +78,8 @@ implemented by my teammate and is therefore kept as an integration task here.
   - [x] reload configuration
   - [x] shut down the supervisor
 - [x] Define stable request/response and error types.
-- [ ] Agree on this interface with my teammate before the TUI is implemented.
-- [ ] Integrate the TUI with the supervisor without duplicating process logic.
+- [x] Agree on this interface with my teammate before the TUI is implemented.
+- [x] Integrate the TUI with the supervisor without duplicating process logic.
 - [x] Test the backend independently from the TUI.
 
 ## 5. Reliability and delivery
