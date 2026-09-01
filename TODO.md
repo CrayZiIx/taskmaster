@@ -93,7 +93,7 @@ implemented by my teammate and is therefore kept as an integration task here.
   directories, and invalid configuration values.
 - [x] Review goroutine, file-descriptor, and process cleanup.
 - [x] Add useful logs for starts, stops, exits, restarts, and errors.
-- [ ] Write build and usage instructions.
+- [x] Write build and usage instructions.
 - [x] Add a complete example configuration.
 - [ ] Perform a clean-clone build and final manual test.
 
