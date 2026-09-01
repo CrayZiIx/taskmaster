@@ -76,6 +76,7 @@ The prompt accepts one command per line:
 
 | Command | Description |
 | --- | --- |
+| `help` | Display the available commands. |
 | `list` | List every configured program instance. |
 | `status` | Show the status of every instance. |
 | `status <program>` | Show the status of one program. |
