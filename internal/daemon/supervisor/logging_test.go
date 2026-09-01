@@ -118,7 +118,8 @@ func TestSupervisorLogsLifecycleEvents(t *testing.T) {
 	if err := s.StopProgram("worker"); err != nil {
 		t.Fatalf("StopProgram() error = %v", err)
 	}
-	if !logs.has("program start requested") || !logs.has("process started") || !logs.has("program stop requested") || !logs.has("process stopped") {
+	_ = waitForLog(t, logs, "process stopped")
+	if !logs.has("program start requested") || !logs.has("process started") || !logs.has("program stop requested") {
 		t.Fatalf("lifecycle log messages missing: %+v", logs.all())
 	}
 	started, ok := logs.find("process started")
