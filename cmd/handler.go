@@ -11,10 +11,28 @@ import (
 	"github.com/CrayZiIx/taskmaster/internal/tui"
 )
 
+const helpText = `Available commands:
+  help                         Show this help message.
+  list                         List all configured program instances.
+  status [program]             Show the status of all or one program.
+  start <program>              Start a program.
+  stop <program>               Stop a program gracefully.
+  restart <program>            Restart a program.
+  reload [config-path]         Reload and validate the configuration.
+  quit                         Stop all programs and exit.
+  exit                         Stop all programs and exit.
+  shutdown                     Stop all programs and exit.
+`
+
 func commandHandler(ctx context.Context, daemon *backend.Backend) tui.CommandHandler {
 	return func(command string, args []string) (string, error) {
 		command = strings.ToLower(strings.TrimSpace(command))
 		switch command {
+		case "help":
+			if len(args) != 0 {
+				return "", fmt.Errorf("usage: help")
+			}
+			return helpText, nil
 		case "list":
 			if len(args) != 0 {
 				return "", fmt.Errorf("usage: list")

@@ -56,8 +56,19 @@ go run ./cmd ./path/to/taskmaster.yaml
 ./taskmaster ./path/to/taskmaster.yaml
 ```
 
-Startup and daemon lifecycle logs are written as structured text to stderr.
-Program stdout and stderr follow each program's `output` configuration.
+Each Taskmaster run creates a dedicated daemon log:
+
+```text
+logs/<UTC-timestamp>-<pid>/daemon.log
+```
+
+The file uses one JSON record per line. Its first record contains run metadata
+such as the loaded configuration path, PID, and start time. Reloads keep using
+the same file and append a reload event. Program stdout and stderr follow each
+program's `output` configuration and are kept separate from daemon logs.
+
+If the log directory cannot be created, Taskmaster reports the startup error
+on stderr and does not start the supervisor.
 
 ## Interactive commands
 
@@ -65,6 +76,7 @@ The prompt accepts one command per line:
 
 | Command | Description |
 | --- | --- |
+| `help` | Display the available commands. |
 | `list` | List every configured program instance. |
 | `status` | Show the status of every instance. |
 | `status <program>` | Show the status of one program. |

@@ -61,6 +61,19 @@ func TestCommandHandlerMapsAllDaemonActions(t *testing.T) {
 	}
 }
 
+func TestCommandHandlerHelp(t *testing.T) {
+	handler := commandHandler(context.Background(), nil)
+	output, err := handler("HELP", nil)
+	if err != nil {
+		t.Fatalf("help error = %v", err)
+	}
+	for _, command := range []string{"help", "list", "status", "start", "stop", "restart", "reload", "quit", "exit", "shutdown"} {
+		if !strings.Contains(output, command) {
+			t.Fatalf("help output = %q, missing command %q", output, command)
+		}
+	}
+}
+
 func TestCommandHandlerReportsUnexpectedSignal(t *testing.T) {
 	s, err := supervisor.New(&config.ConfigurationFile{Programs: map[string]config.ConfigurationProgram{
 		"worker": {
@@ -120,6 +133,7 @@ func TestCommandHandlerValidatesCommands(t *testing.T) {
 		want string
 	}{
 		{name: "missing start argument", cmd: "start", want: "usage: start <program>"},
+		{name: "extra help argument", cmd: "help", args: []string{"worker"}, want: "usage: help"},
 		{name: "extra list argument", cmd: "list", args: []string{"worker"}, want: "usage: list"},
 		{name: "extra quit argument", cmd: "quit", args: []string{"worker"}, want: "usage: quit"},
 		{name: "unknown command", cmd: "wat", want: "unknown command: wat"},
