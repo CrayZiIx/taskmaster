@@ -53,6 +53,20 @@ func main() {
 		supervisorDone <- s.Run(ctx)
 	}()
 
+	reloadSignals := make(chan os.Signal, 1)
+	signal.Notify(reloadSignals, syscall.SIGHUP)
+	defer signal.Stop(reloadSignals)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-reloadSignals:
+				reloadOnSignal(ctx, daemon, logger)
+			}
+		}
+	}()
+
 	shell := tui.New(commandHandler(ctx, daemon))
 	if err := shell.RunContext(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("TUI stopped with an error", "error", err)
