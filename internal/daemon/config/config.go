@@ -99,8 +99,6 @@ func ParseConfig(reader io.Reader) (*ConfigurationFile, error) {
 	return cfg, nil
 }
 
-// decodeConfig is kept as the syntax-only decoder used by the original unit
-// tests and by callers that need the YAML shape before applying defaults.
 func decodeConfig(reader io.Reader) (*ConfigurationFile, error) {
 	var cfg ConfigurationFile
 	if err := decodeYAML(reader, &cfg); err != nil {

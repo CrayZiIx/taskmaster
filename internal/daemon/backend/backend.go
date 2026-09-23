@@ -45,7 +45,7 @@ type Request struct {
 	ConfigPath string
 }
 
-// Response contains an immutable copy of the supervisor's current status.
+// Response contains a detached snapshot of the supervisor's current status.
 // Every action returns a response, including actions that do not change state.
 type Response struct {
 	ShuttingDown bool
