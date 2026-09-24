@@ -95,7 +95,7 @@ implemented by my teammate and is therefore kept as an integration task here.
 - [x] Add useful logs for starts, stops, exits, restarts, and errors.
 - [x] Write build and usage instructions.
 - [x] Add a complete example configuration.
-- [ ] Perform a clean-clone build and final manual test.
+- [x] Perform a clean-clone build and final manual test.
 
 ## Bonus: Unix socket control interface
 
@@ -116,9 +116,9 @@ stable.
 
 ## Definition of done
 
-- [ ] Every mandatory item above is implemented or explicitly explained in the
+- [x] Every mandatory item above is implemented or explicitly explained in the
   project documentation.
-- [ ] The daemon manages all configured process instances reliably.
-- [ ] The TUI can control the backend through the agreed interface.
+- [x] The daemon manages all configured process instances reliably.
+- [x] The TUI can control the backend through the agreed interface.
 - [x] Tests pass, including race and cleanup tests.
 - [ ] The Unix socket bonus is either complete or clearly marked as optional.
